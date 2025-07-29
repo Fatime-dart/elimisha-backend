@@ -119,6 +119,7 @@ app.post('/callback', async (req, res) => {
   res.status(200).json({ message: 'Callback received successfully' });
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`✅ M-Pesa STK server running on http://0.0.0.0:${port}`);
+
+app.listen(port, () => {
+  console.log(`✅ M-Pesa STK server running on port ${port}`);
 });
