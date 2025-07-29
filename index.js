@@ -53,7 +53,7 @@ app.post('/stk-push', async (req, res) => {
       PartyA: req.body.phone || SANDBOX_PHONE,
       PartyB: BUSINESS_SHORT_CODE,
       PhoneNumber: req.body.phone || SANDBOX_PHONE,
-      CallBackURL: 'https://elimisha-backend.onrender.com/callback',
+      CallBackURL: 'https://elimisha-backend-kce7.onrender.com/callback',
       AccountReference: 'ElimishaApp',
       TransactionDesc: 'Loan Payment',
     };
