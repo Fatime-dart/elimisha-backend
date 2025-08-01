@@ -3,6 +3,7 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const moment = require('moment');
+const twilio = require('twilio'); // Moved up here
 
 dotenv.config();
 const app = express();
@@ -17,23 +18,80 @@ const {
   BUSINESS_SHORT_CODE,
   PASSKEY,
   SANDBOX_PHONE,
+  TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN,
+  TWILIO_SERVICE_SID,
 } = process.env;
 
-// Get access token
+// 🔐 Twilio client
+const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+// 🔐 Send OTP route
+app.post('/send-otp', async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+
+  try {
+    const verification = await twilioClient.verify
+      .services(TWILIO_SERVICE_SID)
+      .verifications.create({
+        to: phone,
+        channel: 'sms',
+      });
+
+    res.status(200).json({
+      message: 'OTP sent successfully',
+      sid: verification.sid,
+    });
+  } catch (error) {
+    console.error('❌ Error sending OTP:', error.message);
+    res.status(500).json({ error: 'Failed to send OTP' });
+  }
+});
+
+// 🔐 Verify OTP route
+app.post('/verify-otp', async (req, res) => {
+  const { phone, code } = req.body;
+
+  if (!phone || !code) {
+    return res.status(400).json({ error: 'Phone number and OTP code are required' });
+  }
+
+  try {
+    const verificationCheck = await twilioClient.verify
+      .services(TWILIO_SERVICE_SID)
+      .verificationChecks.create({
+        to: phone,
+        code,
+      });
+
+    if (verificationCheck.status === 'approved') {
+      res.status(200).json({ message: 'OTP verified successfully' });
+    } else {
+      res.status(401).json({ error: 'Invalid OTP' });
+    }
+  } catch (error) {
+    console.error('❌ OTP Verification Error:', error.message);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
+// 💰 Get M-Pesa access token
 async function getAccessToken() {
   const auth = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
   const response = await axios.get(
     'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
     {
-      headers: {
-        Authorization: `Basic ${auth}`,
-      },
+      headers: { Authorization: `Basic ${auth}` },
     }
   );
   return response.data.access_token;
 }
 
-// STK Push route
+// 💰 STK Push route
 app.post('/stk-push', async (req, res) => {
   try {
     console.log('📞 STK Push request received');
@@ -58,19 +116,13 @@ app.post('/stk-push', async (req, res) => {
       TransactionDesc: 'Loan Payment',
     };
 
-    console.log('📤 Sending payload to Safaricom:', JSON.stringify(payload, null, 2));
-
     const response = await axios.post(
       'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
       payload,
       {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       }
     );
-
-    console.log('📥 STK Push API response:', response.data);
 
     res.status(200).json({
       message: 'STK Push Initiated',
@@ -83,15 +135,13 @@ app.post('/stk-push', async (req, res) => {
   }
 });
 
-
-// ✅ Callback route - receives the final result from Safaricom
+// 💰 Callback route
 app.post('/callback', async (req, res) => {
   const callbackData = req.body;
 
   console.log('📩 M-Pesa Callback Received:', JSON.stringify(callbackData, null, 2));
 
   const stkCallback = callbackData.Body?.stkCallback;
-
   if (!stkCallback) {
     return res.status(400).json({ error: 'Invalid callback data' });
   }
@@ -106,7 +156,6 @@ app.post('/callback', async (req, res) => {
     const amount = metadata.find(i => i.Name === 'Amount')?.Value;
     const phone = metadata.find(i => i.Name === 'PhoneNumber')?.Value;
 
-    // ✅ Log or save successful payment
     console.log(`✅ Payment Success:
     Phone: ${phone}
     Amount: ${amount}
@@ -119,7 +168,7 @@ app.post('/callback', async (req, res) => {
   res.status(200).json({ message: 'Callback received successfully' });
 });
 
-
+// ✅ Start the server
 app.listen(port, () => {
-  console.log(`✅ M-Pesa STK server running on port ${port}`);
+  console.log(`✅ Server running on port ${port}`);
 });
