@@ -6,6 +6,11 @@ const moment = require('moment');
 const twilio = require('twilio'); // Moved up here
 
 dotenv.config();
+console.log('✅ Loaded ENV Variables:', {
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+  TWILIO_SERVICE_SID: process.env.TWILIO_SERVICE_SID,
+});
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -33,6 +38,7 @@ app.post('/send-otp', async (req, res) => {
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
+  console.log('📌 Service SID:', TWILIO_SERVICE_SID);
 
   try {
     const verification = await twilioClient.verify
@@ -47,7 +53,7 @@ app.post('/send-otp', async (req, res) => {
       sid: verification.sid,
     });
   } catch (error) {
-    console.error('❌ Error sending OTP:', error.message);
+    console.error('❌ Error sending OTP:', error.response?.data || error.message || error);
     res.status(500).json({ error: 'Failed to send OTP' });
   }
 });
